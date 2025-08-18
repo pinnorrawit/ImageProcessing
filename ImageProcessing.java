@@ -127,4 +127,76 @@ public static BufferedImage zoom(BufferedImage img, int factor, String method) {
             }
         }
     }
+
+    public static boolean isGrayscale(BufferedImage inputImage) {
+        return inputImage.getColorModel().getNumColorComponents() == 1;
+    }
+
+    public static BufferedImage powerLawTransform(BufferedImage inputImage, double c, double gamma) {
+        int width = inputImage.getWidth();
+        int height = inputImage.getHeight();
+        BufferedImage outputImage = new BufferedImage(width, height, inputImage.getType());
+        
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (isGrayscale(inputImage)) {
+                    // Process grayscale image
+                    int gray = inputImage.getRaster().getSample(x, y, 0);
+                    int transformed = powerTransformPixel(gray, c, gamma);
+                    outputImage.getRaster().setSample(x, y, 0, transformed);
+                } else {
+                    // Process color image (RGB)
+                    int rgb = inputImage.getRGB(x, y);
+                    int r = (rgb >> 16) & 0xFF;
+                    int g = (rgb >> 8) & 0xFF;
+                    int b = rgb & 0xFF;
+                    
+                    // Apply transformation to each channel
+                    r = powerTransformPixel(r, c, gamma);
+                    g = powerTransformPixel(g, c, gamma);
+                    b = powerTransformPixel(b, c, gamma);
+                    
+                    // Set new RGB value
+                    int newRgb = (r << 16) | (g << 8) | b;
+                    outputImage.setRGB(x, y, newRgb);
+                }
+            }
+        }
+        
+        return outputImage;
+    }
+
+    private static double normalizePixel(int pixel) {
+        return pixel / 255.0;
+    }
+    
+    private static int denormalizePixel(double transformedPixel) {
+        int newPixel = (int) Math.round(transformedPixel * 255);
+        return Math.max(0, Math.min(255, newPixel));  // Clamp to [0, 255]
+    }
+
+    private static double applyPowerTransform(double normalizedPixel, double c, double gamma) {
+        return c * Math.pow(normalizedPixel, gamma);
+    }
+    
+    private static int powerTransformPixel(int pixel, double c, double gamma) {
+        double normalized = normalizePixel(pixel);               // Step 1: Normalize
+        double transformed = applyPowerTransform(normalized, c, gamma); // Step 2: Transform
+        return denormalizePixel(transformed);                    // Step 3: Denormalize + clamp
+    }
+
+    public static BufferedImage[] transformMultiple(BufferedImage inputImage, 
+                                                  double[] cValues, double[] gammaValues) {
+        int total = cValues.length * gammaValues.length;
+        BufferedImage[] results = new BufferedImage[total];
+        int index = 0;
+        
+        for (double c : cValues) {
+            for (double gamma : gammaValues) {
+                results[index++] = powerLawTransform(inputImage, c, gamma);
+            }
+        }
+        
+        return results;
+    }
 }
