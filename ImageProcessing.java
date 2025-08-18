@@ -31,15 +31,15 @@ public class ImageProcessing {
         return grayscale;
     }
 
-    public static BufferedImage zoom(BufferedImage img, int factor, String method) {
+public static BufferedImage zoom(BufferedImage img, int factor, String method) {
         int newWidth = img.getWidth() * factor;
         int newHeight = img.getHeight() * factor;
-        BufferedImage zoomed = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_BYTE_GRAY);
+        BufferedImage zoomed = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
         
         if ("replication".equals(method)) {
             for (int y = 0; y < newHeight; y++) {
                 for (int x = 0; x < newWidth; x++) {
-                    int origX = Math.min(x / factor, img.getWidth() - 1); // Boundary check
+                    int origX = Math.min(x / factor, img.getWidth() - 1);
                     int origY = Math.min(y / factor, img.getHeight() - 1);
                     zoomed.setRGB(x, y, img.getRGB(origX, origY));
                 }
@@ -53,7 +53,7 @@ public class ImageProcessing {
     public static BufferedImage shrink(BufferedImage img, int factor, String method) {
         int newWidth = img.getWidth() / factor;
         int newHeight = img.getHeight() / factor;
-        BufferedImage shrunk = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_BYTE_GRAY);
+        BufferedImage shrunk = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
         
         if ("replication".equals(method)) {
             for (int y = 0; y < newHeight; y++) {
@@ -70,11 +70,11 @@ public class ImageProcessing {
     }
 
     private static int getMirroredPixel(BufferedImage img, int x, int y) {
-    // Mirror coordinates if outside bounds
-    x = (x < 0) ? -x : (x >= img.getWidth()) ? 2*img.getWidth() - x - 2 : x;
-    y = (y < 0) ? -y : (y >= img.getHeight()) ? 2*img.getHeight() - y - 2 : y;
-    return img.getRGB(x, y) & 0xFF;
-}
+        // Mirror coordinates if outside bounds
+        x = (x < 0) ? -x : (x >= img.getWidth()) ? 2*img.getWidth() - x - 2 : x;
+        y = (y < 0) ? -y : (y >= img.getHeight()) ? 2*img.getHeight() - y - 2 : y;
+        return img.getRGB(x, y);
+    }
 
     public static void bilinearInterpolation(BufferedImage src, BufferedImage dest) {
         for (int y = 0; y < dest.getHeight(); y++) {
@@ -89,20 +89,41 @@ public class ImageProcessing {
                 double xFrac = xPos - x0;
                 int x1 = x0 + 1;
                 
-                // Use mirroring boundary conditions
-                int a = getMirroredPixel(src, x0, y0);
-                int b = getMirroredPixel(src, x1, y0);
-                int c = getMirroredPixel(src, x0, y1);
-                int d = getMirroredPixel(src, x1, y1);
+                // Get the four surrounding pixels
+                int pixelA = getMirroredPixel(src, x0, y0);
+                int pixelB = getMirroredPixel(src, x1, y0);
+                int pixelC = getMirroredPixel(src, x0, y1);
+                int pixelD = getMirroredPixel(src, x1, y1);
                 
-                // Calculate the grayscale value using bilinear interpolation
-                double gray = a * (1 - xFrac) * (1 - yFrac) + 
-                            b * xFrac * (1 - yFrac) + 
-                            c * (1 - xFrac) * yFrac + 
-                            d * xFrac * yFrac;
+                // Extract color components for each pixel
+                Color colorA = new Color(pixelA);
+                Color colorB = new Color(pixelB);
+                Color colorC = new Color(pixelC);
+                Color colorD = new Color(pixelD);
                 
-                int grayInt = (int) Math.round(Math.max(0, Math.min(255, gray))); // Clamp to 0-255
-                dest.setRGB(x, y, new Color(grayInt, grayInt, grayInt).getRGB()); // set grayscale color
+                // Interpolate each color channel separately
+                int red = (int) (colorA.getRed() * (1 - xFrac) * (1 - yFrac) + 
+                          colorB.getRed() * xFrac * (1 - yFrac) + 
+                          colorC.getRed() * (1 - xFrac) * yFrac + 
+                          colorD.getRed() * xFrac * yFrac);
+                
+                int green = (int) (colorA.getGreen() * (1 - xFrac) * (1 - yFrac) + 
+                            colorB.getGreen() * xFrac * (1 - yFrac) + 
+                            colorC.getGreen() * (1 - xFrac) * yFrac + 
+                            colorD.getGreen() * xFrac * yFrac);
+                
+                int blue = (int) (colorA.getBlue() * (1 - xFrac) * (1 - yFrac) + 
+                           colorB.getBlue() * xFrac * (1 - yFrac) + 
+                           colorC.getBlue() * (1 - xFrac) * yFrac + 
+                           colorD.getBlue() * xFrac * yFrac);
+                
+                // Clamp values to 0-255 range
+                red = Math.max(0, Math.min(255, red));
+                green = Math.max(0, Math.min(255, green));
+                blue = Math.max(0, Math.min(255, blue));
+                
+                // Set the interpolated color
+                dest.setRGB(x, y, new Color(red, green, blue).getRGB());
             }
         }
     }
