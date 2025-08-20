@@ -17,7 +17,7 @@ public class ImageProcessing {
         BufferedImage grayscale = new BufferedImage(
             original.getWidth(), 
             original.getHeight(), 
-            BufferedImage.TYPE_INT_RGB);
+            BufferedImage.TYPE_BYTE_GRAY);
         
         for (int y = 0; y < original.getHeight(); y++) {
             for (int x = 0; x < original.getWidth(); x++) {
@@ -129,7 +129,31 @@ public static BufferedImage zoom(BufferedImage img, int factor, String method) {
     }
 
     public static boolean isGrayscale(BufferedImage inputImage) {
-        return inputImage.getColorModel().getNumColorComponents() == 1;
+        // Method 1: Check if it's a true single-channel grayscale
+        if (inputImage.getColorModel().getNumColorComponents() == 1) {
+            return true;
+        }
+        
+        // Method 2: Check if it's an RGB image with all pixels having R=G=B
+        // Only check a sample of pixels for performance
+        int sampleSize = Math.min(100, inputImage.getWidth() * inputImage.getHeight());
+        int step = Math.max(1, (inputImage.getWidth() * inputImage.getHeight()) / sampleSize);
+        
+        int count = 0;
+        for (int y = 0; y < inputImage.getHeight(); y += step) {
+            for (int x = 0; x < inputImage.getWidth(); x += step) {
+                if (count++ > sampleSize) break;
+                
+                int rgb = inputImage.getRGB(x, y);
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8) & 0xFF;
+                int b = rgb & 0xFF;
+                if (r != g || g != b) {
+                    return false; // Found a non-gray pixel
+                }
+            }
+        }
+        return true; // All sampled pixels are grayscale
     }
 
     public static BufferedImage powerLawTransform(BufferedImage inputImage, double c, double gamma) {
@@ -163,6 +187,39 @@ public static BufferedImage zoom(BufferedImage img, int factor, String method) {
             }
         }
         
+        return outputImage;
+    }
+
+    public static BufferedImage customGrayscaleTransform(BufferedImage inputImage) {
+        if (!isGrayscale(inputImage)) {
+            throw new IllegalArgumentException("Input image must be grayscale");
+        }
+        
+        int width = inputImage.getWidth();
+        int height = inputImage.getHeight();
+        BufferedImage outputImage = new BufferedImage(width, height, inputImage.getType());
+        
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Get normalized grayscale value [0, 1]
+                int grayValue = inputImage.getRaster().getSample(x, y, 0);
+                double normalized = grayValue / 255.0;
+                
+                // Apply transformation
+                double transformed;
+                if (normalized <= 0.25) {
+                    transformed = 0.8333;
+                } else if (normalized >= 0.75) {
+                    transformed = 0.8333;
+                } else {
+                    transformed = -1.3333 * normalized + 1.1667;
+                }
+                
+                // Clamp and convert back to [0, 255]
+                int newGray = (int) Math.round(Math.max(0, Math.min(1, transformed)) * 255);
+                outputImage.getRaster().setSample(x, y, 0, newGray);
+            }
+        }
         return outputImage;
     }
 

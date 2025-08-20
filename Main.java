@@ -80,6 +80,20 @@ public class Main {
                         imagesToDisplay.add(processedImage);
                     }
 
+                    // CUSTOM GRAYSCALE ENHANCEMENT OPTION
+                    System.out.print("\nApply custom 8-bit grayscale enhancement? (y/n): ");
+                    if (scanner.nextLine().equalsIgnoreCase("y")) {
+                        if (!ImageProcessing.isGrayscale(processedImage)) {
+                            System.out.println("Warning: Custom grayscale enhancement requires a grayscale image.");
+                            System.out.println("Skipping this transformation...");
+                        } else {
+                            processedImage = ImageProcessing.customGrayscaleTransform(processedImage);
+                            imagesToDisplay.add(processedImage);
+                            System.out.println("Custom grayscale enhancement applied!");
+                            System.out.println("Transformation: [0,0.25]∪[0.75,1]→0.8333, (0.25,0.75)→linear");
+                        }
+                    }
+
                     // Power-law transformation option
                     System.out.print("\nApply power-law transformation? (y/n): ");
                     if (scanner.nextLine().equalsIgnoreCase("y")) {
