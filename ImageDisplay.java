@@ -79,4 +79,33 @@ public class ImageDisplay {
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
+    
+    public static void showImageTrueSize(BufferedImage image, String title) {
+        JFrame frame = new JFrame(title);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+        JLabel label = new JLabel(new ImageIcon(image));
+        
+        // Create a scroll pane to handle large images
+        JScrollPane scrollPane = new JScrollPane(label);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        
+        // Set the preferred size to the image dimensions (but limit to screen size if needed)
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int maxWidth = (int) (screenSize.width * 0.9);
+        int maxHeight = (int) (screenSize.height * 0.9);
+        
+        int prefWidth = Math.min(image.getWidth(), maxWidth);
+        int prefHeight = Math.min(image.getHeight(), maxHeight);
+        
+        scrollPane.setPreferredSize(new Dimension(prefWidth, prefHeight));
+        
+        frame.add(scrollPane);
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+        
+        System.out.println("Image displayed at dimensions: " + image.getWidth() + "x" + image.getHeight());
+    }
 }

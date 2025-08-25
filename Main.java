@@ -41,19 +41,25 @@ public class Main {
                     BufferedImage processedImage = originalImage;
                     List<BufferedImage> imagesToDisplay = new ArrayList<>();
                     
+                    // Store the original image for comparison in custom grayscale
+                    BufferedImage beforeCustomGrayscale = null;
+                    
                     // Convert to grayscale option
                     System.out.print("Convert to grayscale? (y/n): ");
-                    if (scanner.nextLine().equalsIgnoreCase("y")) {
+                    boolean convertToGrayscale = scanner.nextLine().equalsIgnoreCase("y");
+                    if (convertToGrayscale) {
                         processedImage = ImageProcessing.convertToGrayscale(originalImage);
+                        // Grayscale: Show only the grayscale image
+                        imagesToDisplay.clear();
                         imagesToDisplay.add(processedImage);
                     } else {
                         processedImage = originalImage;
-                        imagesToDisplay.add(originalImage);
                     }
 
                     // Resize options
                     System.out.print("Resize the image? (y/n): ");
-                    if (scanner.nextLine().equalsIgnoreCase("y")) {
+                    boolean resizeImage = scanner.nextLine().equalsIgnoreCase("y");
+                    if (resizeImage) {
                         System.out.println("Choose resize option:");
                         System.out.println("1. Zoom in (enlarge)");
                         System.out.println("2. Zoom out (shrink)");
@@ -77,31 +83,54 @@ public class Main {
                         processedImage = (choice == 1) 
                             ? ImageProcessing.zoom(processedImage, factor, method)
                             : ImageProcessing.shrink(processedImage, factor, method);
-                        imagesToDisplay.add(processedImage);
+                        
+                        // Resize: Show only the resized image
+                        System.out.println("\nDisplaying resized image...");
+                        System.out.println("New dimensions: " + processedImage.getWidth() + "x" + processedImage.getHeight());
+                        ImageDisplay.showImageTrueSize(processedImage, "Resized Image");
+                        
+                        // Ask if user wants to continue with other operations
+                        System.out.print("\nContinue with other operations on this resized image? (y/n): ");
+                        boolean continueProcessing = scanner.nextLine().equalsIgnoreCase("y");
+                        if (!continueProcessing) {
+                            continue; // Skip to next iteration
+                        }
                     }
 
                     // CUSTOM GRAYSCALE ENHANCEMENT OPTION
                     System.out.print("\nApply custom 8-bit grayscale enhancement? (y/n): ");
-                    if (scanner.nextLine().equalsIgnoreCase("y")) {
+                    boolean applyCustomGrayscale = scanner.nextLine().equalsIgnoreCase("y");
+                    if (applyCustomGrayscale) {
                         if (!ImageProcessing.isGrayscale(processedImage)) {
                             System.out.println("Warning: Custom grayscale enhancement requires a grayscale image.");
                             System.out.println("Skipping this transformation...");
                         } else {
+                            beforeCustomGrayscale = processedImage;
                             processedImage = ImageProcessing.customGrayscaleTransform(processedImage);
-                            imagesToDisplay.add(processedImage);
+                            
+                            // Custom Grayscale: Show before and after images
+                            List<BufferedImage> customGrayscaleImages = new ArrayList<>();
+                            customGrayscaleImages.add(beforeCustomGrayscale);
+                            customGrayscaleImages.add(processedImage);
+                            
                             System.out.println("Custom grayscale enhancement applied!");
+                            System.out.println("Displaying before and after comparison...");
+                            ImageDisplay.showImagesGrid(customGrayscaleImages, "Custom Grayscale: Before vs After");
                             System.out.println("Transformation: [0,0.25]∪[0.75,1]→0.8333, (0.25,0.75)→linear");
                         }
                     }
 
                     // Power-law transformation option
                     System.out.print("\nApply power-law transformation? (y/n): ");
-                    if (scanner.nextLine().equalsIgnoreCase("y")) {
+                    boolean applyPowerLaw = scanner.nextLine().equalsIgnoreCase("y");
+                    if (applyPowerLaw) {
                         System.out.println("\nPower-law Options:");
                         System.out.println("1. Single transformation");
                         System.out.println("2. Multiple transformations (test different parameters)");
                         System.out.print("Enter choice (1-2): ");
                         int powerLawChoice = Integer.parseInt(scanner.nextLine());
+                        
+                        List<BufferedImage> powerLawImages = new ArrayList<>();
                         
                         if (powerLawChoice == 1) {
                             // Single transformation
@@ -110,8 +139,13 @@ public class Main {
                             System.out.print("Enter gamma value (e.g., 0.3, 2.4): ");
                             double gamma = Double.parseDouble(scanner.nextLine());
                             
-                            processedImage = ImageProcessing.powerLawTransform(processedImage, c, gamma);
-                            imagesToDisplay.add(processedImage);
+                            BufferedImage powerLawResult = ImageProcessing.powerLawTransform(processedImage, c, gamma);
+                            
+                            // Power-law single: Show original + transformed
+                            powerLawImages.add(processedImage); // Original
+                            powerLawImages.add(powerLawResult); // Transformed
+                            
+                            processedImage = powerLawResult;
                         } 
                         else if (powerLawChoice == 2) {
                             // Multiple transformations
@@ -125,17 +159,22 @@ public class Main {
                             BufferedImage[] powerLawResults = ImageProcessing.transformMultiple(
                                 processedImage, cValues, gammaValues);
                             
-                            // Add all transformed images to display list
-                            Collections.addAll(imagesToDisplay, powerLawResults);
+                            // Power-law multiple: Show original + all transformed images
+                            powerLawImages.add(processedImage); // Original
+                            Collections.addAll(powerLawImages, powerLawResults);
+                        }
+                        
+                        // Display power-law results
+                        System.out.println("Displaying power-law transformation results...");
+                        if (powerLawImages.size() > 1) {
+                            ImageDisplay.showImagesGrid(powerLawImages, "Power-law Transformation Results");
                         }
                     }
                     
-                    // Display all processed images
-                    if (imagesToDisplay.size() > 1) {
-                        System.out.println("\nDisplaying " + imagesToDisplay.size() + " image variants...");
-                        ImageDisplay.showImagesGrid(imagesToDisplay, "Image Processing Results");
-                    } else {
-                        ImageDisplay.showImage(processedImage, "Processed Image");
+                    // Final display if no specific display was shown for the last operation
+                    if (!applyCustomGrayscale && !applyPowerLaw && !resizeImage && !convertToGrayscale) {
+                        // If no operations were performed, show the original image
+                        ImageDisplay.showImage(originalImage, "Original Image");
                     }
                     
                 } catch (NumberFormatException e) {

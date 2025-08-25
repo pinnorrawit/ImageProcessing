@@ -4,11 +4,6 @@ import java.io.IOException;
 
 public class ImageProcessing {
     
-    /**
-     * Converts an image to grayscale using luminosity method
-     * @param imageFile The image file to convert (must exist)
-     * @return Grayscale BufferedImage
-     */
     public static BufferedImage convertToGrayscale(BufferedImage imageFile) throws IOException {
         BufferedImage original = imageFile;
         if (original == null) {
@@ -19,6 +14,7 @@ public class ImageProcessing {
             original.getHeight(), 
             BufferedImage.TYPE_BYTE_GRAY);
         
+        // Convert image to grayscale with luminosity formula
         for (int y = 0; y < original.getHeight(); y++) {
             for (int x = 0; x < original.getWidth(); x++) {
                 Color color = new Color(original.getRGB(x, y));
@@ -31,7 +27,7 @@ public class ImageProcessing {
         return grayscale;
     }
 
-public static BufferedImage zoom(BufferedImage img, int factor, String method) {
+    public static BufferedImage zoom(BufferedImage img, int factor, String method) {
         int newWidth = img.getWidth() * factor;
         int newHeight = img.getHeight() * factor;
         BufferedImage zoomed = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
@@ -207,12 +203,12 @@ public static BufferedImage zoom(BufferedImage img, int factor, String method) {
                 
                 // Apply transformation
                 double transformed;
-                if (normalized <= 0.25) {
-                    transformed = 0.8333;
-                } else if (normalized >= 0.75) {
-                    transformed = 0.8333;
+                if (normalized <= 0.25 || normalized >= 0.75) {
+                    transformed = 0.8333;  // Set to bright gray
                 } else {
-                    transformed = -1.3333 * normalized + 1.1667;
+                    // Linear mapping from (0.25, 0.75) to (0, 1)
+                    // This should be a proper linear transformation
+                    transformed = 2.0 * (normalized - 0.25);  // Maps 0.25→0, 0.75→1
                 }
                 
                 // Clamp and convert back to [0, 255]
