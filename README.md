@@ -5,17 +5,17 @@ This repository contains multiple independent Java-based solutions rather than a
 Project Structure  
 This repository is organized by assignment, with each containing its own self-contained implementation:  
 /  
-├── assignment_1/                  # First assignment  
+├── assignment_1/                  # 8-bit grayscale image resizing / power law transformation  
 │   ├── Main.java                  # Entry point with user interface and workflow control  
-│   ├── ImageProcessing.java       # Core image processing algorithms and operations  
-│   ├── ImageDisplay.java          # Visualization utilities (including multi-grid display)  
+│   ├── ImageProcessing.java       # Core image processing algorithms and operations for resize and transformation  
+│   ├── ImageDisplay.java          # Visualization utilities  
 │   └── ImageFileFinder.java       # File handling utilities for locating images  
 │  
-├── assignment_2/                  # Second assignment  
+├── assignment_2/                  # 8-bit grayscale histogram equalization / local enhancement  
 │   ├── Main2.java                 # Entry point for second assignment  
-│   ├── ImageProcessing2.java      # Enhanced processing algorithms  
+│   ├── ImageProcessing2.java      # Enhanced processing algorithms for histogram equalization / local enhancement  
 │   ├── ImageDisplay2.java         # Advanced visualization utilities  
-│   └── ImageFileFinder.java       # File handling utilities (reused or extended)  
+│   └── ImageFileFinder.java       # File handling utilities (reused)  
 │  
 └── ... (additional assignments)   # Further assignments following similar structure  
   
