@@ -12,12 +12,12 @@ This repository is organized by assignment, with each containing its own self-co
 │   ├── ImageFileFinder.java       # File handling utilities for locating images
 │
 ├── assignment_2/                  # Second assignment
-│   ├── Main2.java                  
-│   ├── ImageProcessing2.java       
-│   ├── ImageDisplay2.java          
-│   ├── ImageFileFinder.java             
+│   ├── Main2.java                 # Entry point for second assignment
+│   ├── ImageProcessing2.java      # Enhanced processing algorithms
+│   ├── ImageDisplay2.java         # Advanced visualization utilities
+│   ├── ImageFileFinder.java       # File handling utilities (reused or extended)
 │
-└── ... (additional assignments)
+└── ... (additional assignments)   # Further assignments following similar structure
 
 Contributing
 This is an academic project, but suggestions and improvements are welcome through issues and pull requests.
