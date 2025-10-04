@@ -1,7 +1,7 @@
 import java.io.File;
 
 public class ImageFileFinder {
-    private static final String[] IMAGE_EXTENSIONS = {".jpg", ".png", ".jpeg"};
+    private static final String[] IMAGE_EXTENSIONS = {".jpg", ".png", ".jpeg", ".JPG", ".PNG", ".JPEG"};
     
     public static String findImageFile(String userInput) {
         // Case 1: User already included an extension
