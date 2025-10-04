@@ -16,6 +16,11 @@ This repository is organized by assignment, with each containing its own self-co
 │   ├── ImageProcessing2.java      # Enhanced processing algorithms for histogram equalization / local enhancement  
 │   ├── ImageDisplay2.java         # Advanced visualization utilities  
 │   └── ImageFileFinder.java       # File handling utilities (reused)  
+├── assignment_3/                  # Frequency domain processing   
+│   ├── Main3.java                 # Entry point for third assignment   
+│   ├── ImageProcessing3.java      # Core algorithms (Fourier, complex[][])   
+│   ├── ImageDisplay3.java         # Visualization with comparison   
+│   └── ImageFileFinder.java       # File handling with extensions   
 │  
 └── ... (additional assignments)   # Further assignments following similar structure  
   
