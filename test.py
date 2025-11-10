@@ -1,34 +1,26 @@
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import ndimage
+import os
 
-# --- Image Pre-processing Functions (Unchanged) ---
-
+# ------------------ Image Preprocessing ------------------ #
 def smooth(image):
-    """
-    Apply CLAHE for contrast enhancement, then ultra heavy smoothing.
-    """
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     clahe_image = clahe.apply(image)
-    
     image_float = clahe_image.astype(np.float32)
     
     smoothed = cv2.GaussianBlur(image_float, (15, 15), 4.0)
     smoothed = cv2.GaussianBlur(smoothed, (11, 11), 3.0)
-    
     smoothed_uint8 = smoothed.astype(np.uint8)
+    
     smoothed = cv2.medianBlur(smoothed_uint8, 15)
     smoothed = cv2.medianBlur(smoothed, 11)
-    
     smoothed = cv2.bilateralFilter(smoothed, 31, 200, 200)
-    
     smoothed = cv2.GaussianBlur(smoothed.astype(np.float32), (9, 9), 2.5)
     
     return smoothed.astype(np.uint8), clahe_image
 
 def crop(input_image, kernel_size=15, target_ratio=3.0/2.0):
-    """Autocrop function"""
     if isinstance(input_image, str):
         gray_image = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
         if gray_image is None:
@@ -49,12 +41,12 @@ def crop(input_image, kernel_size=15, target_ratio=3.0/2.0):
     connected_lungs = cv2.dilate(lung_mask, kernel, iterations=1)
     contours, _ = cv2.findContours(connected_lungs, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    if not contours: return gray_image
+    if not contours: 
+        return gray_image
     
     largest_contour = max(contours, key=cv2.contourArea)
     x, y, w, h = cv2.boundingRect(largest_contour)
     img_h, img_w = gray_image.shape
-    
     padding_x, padding_y = int(w * 0.25), int(h * 0.25)
     bbox_w, bbox_h = w + 2 * padding_x, h + 2 * padding_y
     current_ratio = bbox_w / bbox_h
@@ -69,11 +61,10 @@ def crop(input_image, kernel_size=15, target_ratio=3.0/2.0):
     x1, y1 = max(0, x - padding_x), max(0, y - padding_y)
     x2, y2 = min(img_w, x + w + padding_x), min(img_h, y + h + padding_y)
     
-    cropped = gray_image[y1:y2, x1:x2]
-    return cropped
+    return gray_image[y1:y2, x1:x2]
 
+# ------------------ Dark Region Detection ------------------ #
 def find_dark(cropped_image, smoothed_image):
-    """Find all dark regions (holes) using the smoothed image."""
     _, binary = cv2.threshold(smoothed_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     dark_regions = []
@@ -81,36 +72,27 @@ def find_dark(cropped_image, smoothed_image):
     
     if hierarchy is not None:
         for i, contour in enumerate(contours):
-            if hierarchy[0][i][3] != -1:  # Dark regions (holes)
+            if hierarchy[0][i][3] != -1:
                 area = cv2.contourArea(contour)
                 if area > 300:
                     dark_regions.append(contour)
                     mask = np.zeros_like(cropped_image)
                     cv2.drawContours(mask, [contour], -1, 255, -1)
                     region_masks.append(mask)
-    return dark_regions, region_masks, binary
+    return dark_regions, region_masks
 
-# --- Convex Hull + Trim Function (MODIFIED) ---
-
+# ------------------ Merge Regions ------------------ #
 def merge(dark_regions, region_masks, cropped_image):
-    """
-    Merge the LARGEST dark region with ALL regions to its LEFT,
-    apply Convex Hull, and then TRIM the Hull's right side based on the Largest Region's boundary.
-    """
     if not dark_regions:
         return None
     
-    # *** MODIFICATION: Set margin to 0 ***
     RIGHT_TRIM_MARGIN = 0 
-    
-    # 1. Setup regions & Collect points for Convex Hull
     largest_idx = np.argmax([cv2.contourArea(contour) for contour in dark_regions])
     largest_region = dark_regions[largest_idx]
     largest_mask = region_masks[largest_idx]
     
     lx, ly, lw, lh = cv2.boundingRect(largest_region)
     largest_center_x = lx + lw // 2
-    
     left_regions = []
     all_target_points = largest_region.reshape(-1, 2) 
 
@@ -118,21 +100,17 @@ def merge(dark_regions, region_masks, cropped_image):
         if i == largest_idx: continue
         x, y, w, h = cv2.boundingRect(region)
         region_center_x = x + w // 2
-        
         if region_center_x < largest_center_x:
             left_regions.append(region)
             all_target_points = np.concatenate((all_target_points, region.reshape(-1, 2)), axis=0)
     
     if all_target_points.size == 0:
-        print("Error: No target points found for Convex Hull.")
         return None
 
-    # 2. Calculate Convex Hull
     hull = cv2.convexHull(all_target_points)
     initial_merged_mask = np.zeros_like(cropped_image, dtype=np.uint8)
     cv2.drawContours(initial_merged_mask, [hull], 0, 255, -1) 
 
-    # 3. Apply Trimming Logic (No Margin)
     height, width = cropped_image.shape
     largest_right_boundary = np.zeros(height, dtype=np.int32) 
     largest_y_coords, largest_x_coords = np.where(largest_mask == 255)
@@ -142,14 +120,11 @@ def merge(dark_regions, region_masks, cropped_image):
         max_x_by_y[y] = max(max_x_by_y.get(y, 0), x)
     
     for y, max_x in max_x_by_y.items():
-        # Margin is 0, so the boundary is max_x + 0
         largest_right_boundary[y] = max_x + RIGHT_TRIM_MARGIN 
 
     trimmed_mask = initial_merged_mask.copy()
-    
     for y in range(height):
         boundary_x = largest_right_boundary[y]
-        
         if boundary_x > 0:
             merged_x_coords = np.where(initial_merged_mask[y, :] == 255)[0]
             pixels_to_trim_x = merged_x_coords[merged_x_coords > boundary_x]
@@ -157,110 +132,121 @@ def merge(dark_regions, region_masks, cropped_image):
             
     return largest_mask, trimmed_mask, left_regions
 
-# --- Visualization Function (Unchanged) ---
+# ------------------ Post-processing ------------------ #
+def postprocess_mask(mask):
+    kernel = np.ones((5,5), np.uint8)
+    mask_closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask_opened = cv2.morphologyEx(mask_closed, cv2.MORPH_OPEN, kernel)
+    mask_smooth = cv2.GaussianBlur(mask_opened, (5,5), 0)
+    return mask_smooth.astype(np.uint8)
 
-def create_region_visualization(cropped_image, largest_mask, merged_mask, dark_regions, left_regions):
-    """
-    Create visualization, marking largest (red) and left (green) regions, 
-    and the final merged/trimmed mask (Yellow/Cyan).
-    """
-    original_rgb = cv2.cvtColor(cropped_image, cv2.COLOR_GRAY2RGB)
-    
-    # 3. Comparison: Largest (Red) + Left (Green)
-    comparison_vis = original_rgb.copy()
-    comparison_vis[largest_mask > 0] = comparison_vis[largest_mask > 0] * 0.5 + np.array([0, 0, 255]) * 0.5 # Red
-    for region in left_regions:
-        temp_mask = np.zeros_like(cropped_image)
-        cv2.drawContours(temp_mask, [region], -1, 255, -1)
-        comparison_vis[temp_mask > 0] = comparison_vis[temp_mask > 0] * 0.5 + np.array([0, 255, 0]) * 0.5 # Green
-            
-    # 4. Final merged mask visualization (Yellow/Cyan overlay)
-    merged_vis = original_rgb.copy()
-    merged_vis[merged_mask > 0] = merged_vis[merged_mask > 0] * 0.5 + np.array([0, 255, 255]) * 0.5 
-    
-    return {
-        'comparison_largest_left': comparison_vis,
-        'final_merged_mask': merged_vis,
-        'clahe_image': cv2.cvtColor(original_rgb, cv2.COLOR_RGB2GRAY)
-    }
+def calculate_masked_average(cropped_image, mask):
+    binary_mask = (mask > 0).astype(np.uint8)
+    masked_data = cropped_image * binary_mask
+    roi_pixels = masked_data[masked_data > 0]
+    if roi_pixels.size == 0:
+        return 0.0
+    return np.mean(roi_pixels)
 
-# --- Main Execution Function (Unchanged) ---
+# ------------------ Gradient Region Application ------------------ #
+def region_gradient(preprocessed_img, region_mask, min_factor=0.0, max_factor=1.0, linear_ratio=0.2):
+    """
+    linear_ratio: สัดส่วนระยะจากขอบ region ที่จะลด factor แบบ linear
+    หลังจากนั้นจะลด factor แบบ exponential
+    """
+    mask_bin = (region_mask > 0).astype(np.uint8)
+    if np.sum(mask_bin) == 0:
+        return preprocessed_img.copy()
+    
+    # ระยะจากขอบของ mask
+    dist = cv2.distanceTransform(mask_bin, cv2.DIST_L2, 5)
+    max_dist = dist.max()
+    if max_dist == 0:
+        return preprocessed_img.copy()
+    
+    # normalize distance 0 (ขอบ) -> 1 (center)
+    norm_dist = dist / max_dist
+    
+    # แบ่งเป็น linear และ exponential
+    factor = np.zeros_like(norm_dist, dtype=np.float32)
+    linear_threshold = linear_ratio  # สัดส่วน linear
+    linear_mask = norm_dist <= linear_threshold
+    expo_mask = norm_dist > linear_threshold
+    
+    # linear decay: ขอบสว่าง -> นิดหน่อยเข้ามา
+    factor[linear_mask] = max_factor - (max_factor - (min_factor + 0.1*(max_factor-min_factor))) * (norm_dist[linear_mask]/linear_threshold)
+    
+    # exponential decay หลังจาก linear zone
+    # ใช้ฟังก์ชัน e^(-k*x) เพื่อให้ลดเร็ว
+    k = 10  # ปรับให้ลดเร็ว/ช้า
+    factor[expo_mask] = (min_factor + 0.1*(max_factor-min_factor)) * np.exp(-k*(norm_dist[expo_mask]-linear_threshold)/(1-linear_threshold))
+    
+    factor = np.clip(factor, min_factor, max_factor)
+    
+    result = preprocessed_img.astype(np.float32).copy()
+    result[mask_bin == 1] *= factor[mask_bin == 1]
+    return np.clip(result, 0, 255).astype(np.uint8)
 
-def run(image_path):
-    """
-    Complete analysis flow: Crop -> CLAHE -> Blur -> Find Dark Regions -> Merge (Largest + Left, Trimmed) -> Visualize
-    """
-    print(f"\n=== ANALYZING {image_path} ===")
+
+
+# ------------------ Visualization ------------------ #
+def visualize(cropped_image, merged_mask_post, gradient_applied_img=None):
+    plt.figure(figsize=(15,5))
+    plt.subplot(1,3,1)
+    plt.imshow(cropped_image, cmap='gray')
+    plt.title("Cropped X-ray")
+    plt.axis('off')
     
-    # 1. Autocrop
-    cropped_image = crop(image_path)
-    print("1. Image autocropped")
+    plt.subplot(1,3,2)
+    plt.imshow(merged_mask_post, cmap='gray')
+    plt.title("Mask (Post-processed)")
+    plt.axis('off')
     
-    # 2. CLAHE and Ultra Heavy Smoothing
-    smoothed_image, clahe_image = smooth(cropped_image)
-    print("2. CLAHE applied and image smoothed")
-    
-    # 3. Find all dark regions
-    dark_regions, region_masks, binary_mask = find_dark(cropped_image, smoothed_image)
-    print(f"3. Found {len(dark_regions)} dark regions")
-    
-    if len(dark_regions) == 0:
-        print("No dark regions found!")
-        return None
-    
-    # 4. Merge largest with left regions (Convex Hull + Trim, No Margin)
-    merge_result = merge(dark_regions, region_masks, cropped_image)
-    
-    if merge_result is None:
-        print("Merging failed!")
-        return None
-        
-    largest_mask, merged_mask, left_regions = merge_result
-    
-    print(f"4. Merged Largest region with {len(left_regions)} left regions, bridged using Convex Hull, and **trimmed the right side (No Margin)**.")
-    
-    # 5. Create visualizations
-    visualizations = create_region_visualization(
-        cropped_image, largest_mask, merged_mask, dark_regions, left_regions)
-    
-    # 6. Display results
-    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
-    axes = axes.flatten()
-    
-    # Plotting Sequence
-    axes[0].imshow(cropped_image, cmap='gray')
-    axes[0].set_title('1. Original Cropped', fontsize=12, weight='bold')
-    axes[0].axis('off')
-    
-    axes[1].imshow(clahe_image, cmap='gray')
-    axes[1].set_title('2. CLAHE Applied', fontsize=12, weight='bold')
-    axes[1].axis('off')
-    
-    axes[2].imshow(visualizations['comparison_largest_left'])
-    axes[2].set_title(f'3. Target Regions (Largest + {len(left_regions)} Left)', fontsize=12, weight='bold')
-    axes[2].axis('off')
-    
-    axes[3].imshow(visualizations['final_merged_mask'])
-    axes[3].set_title('4. Final Merged Mask (Trimmed Hull - No Margin)', fontsize=12, weight='bold')
-    axes[3].axis('off')
-    
-    plt.suptitle(f'Region Merging Visualization (Largest + Left, TRIMMED - No Margin) - {image_path}', fontsize=16, weight='bold')
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    if gradient_applied_img is not None:
+        plt.subplot(1,3,3)
+        plt.imshow(gradient_applied_img, cmap='gray')
+        plt.title("Region Gradient Applied")
+        plt.axis('off')
     plt.show()
-    
-    return {
-        'cropped_image': cropped_image,
-        'merged_mask': merged_mask
-    }
 
+# ------------------ Run Full Pipeline ------------------ #
+def run_pipeline(image_path, output_dir="output"):
+    os.makedirs(output_dir, exist_ok=True)
+    base = os.path.basename(image_path).split('.')[0]
+    
+    cropped_img = crop(image_path)
+    preprocessed_img, clahe_img = smooth(cropped_img)
+    dark_regions, region_masks = find_dark(cropped_img, preprocessed_img)
+    
+    if not dark_regions:
+        print(f"No dark regions found in {image_path}.")
+        return
+    
+    merge_result = merge(dark_regions, region_masks, cropped_img)
+    if merge_result is None:
+        print(f"Merge failed for {image_path}.")
+        return
+    
+    largest_mask, merged_mask, left_regions = merge_result
+    merged_mask_post = postprocess_mask(merged_mask)
+    
+    avg_intensity = calculate_masked_average(cropped_img, merged_mask_post)
+    print(f"Average intensity in merged region for {image_path}: {avg_intensity:.2f}")
+    
+    # Apply gradient inside region only
+    gradient_img = region_gradient(cropped_img, merged_mask_post, min_factor=0.0, max_factor=1.0)
+    
+    # Save results
+    cv2.imwrite(os.path.join(output_dir, f"{base}_cropped.png"), cropped_img)
+    cv2.imwrite(os.path.join(output_dir, f"{base}_mask.png"), merged_mask_post)
+    cv2.imwrite(os.path.join(output_dir, f"{base}_region_gradient.png"), gradient_img)
+    
+    visualize(cropped_img, merged_mask_post, gradient_img)
+    
+    return cropped_img, merged_mask_post, gradient_img
+
+# ------------------ Example Usage ------------------ #
 if __name__ == "__main__":
     image_paths = ['BTR022.jpg', 'BTR024.jpg', 'BTR056.jpg', 'BTR065.jpg']
-    
-    if image_paths:
-        try:
-            # Example run: Processes 'BTR056.jpg' (index 2)
-            result = run(image_paths[0]) 
-        except ValueError as e:
-            print(f"Error during run: {e}. Check if the image file exists.")
-
-    print("\nProcessing completed!")
+    for path in image_paths:
+        run_pipeline(path)
